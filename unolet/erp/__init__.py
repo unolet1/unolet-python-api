@@ -11,4 +11,4 @@ class Document(UnoletResource):
 
 
 class Invoice(Document):
-    endpoint = "invoice"
+    _endpoint = "invoice"

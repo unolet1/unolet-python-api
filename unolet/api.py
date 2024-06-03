@@ -57,6 +57,11 @@ class UnoletAPI:
         return UnoletAPI._process_response(response)
 
     @staticmethod
+    def _options(endpoint):
+        response = UnoletAPI._request(endpoint, "OPTIONS")
+        return UnoletAPI._process_response(response)
+
+    @staticmethod
     def _process_response(response: requests.Response):
         return response
 

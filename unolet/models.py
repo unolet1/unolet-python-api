@@ -15,32 +15,77 @@ from unolet.exceptions import (
     ObjectDoesNotExist,
     handle_response_error,
 )
+from unolet.fields import Undefined, field_mapping
+
+class State:
+    def __init__(self, original_data):
+        self.changes = {}
+        self.adding = False
+        self.original_data = original_data or {}
+
+
+class Metadata:
+    def __init__(self, data):
+        self.name = data.get("name", "")
+        self.description = data.get("description", "")
+        self.actions = data.get("actions", {})
+        _fields_dict = self.actions.get("POST", self.actions.get("PUT", {}))
+        self.fields = {}
+        for field_name, field_data in _fields_dict.items():
+            if "child" in field_data:
+                field_class = field_mapping["related"]
+            else:
+                field_class = field_mapping[field_data["type"]]
+
+            field = field_class(field_name, field_data)
+            self.fields[field_name] = field
+
+    def __str__(self):
+        return f"Metadata: {self.name}"
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} {self.name}>"
 
 
 class UnoletResource(SimpleNamespace, UnoletAPI):
-    endpoint = None
+    _endpoint = None
+    _metadata = None
 
     def __init__(self, **kwargs):
-        items = list(kwargs.items())
-        self._changes = {}
-        self._errors = {}
+        self.__class__._initialize_metadata()
+        self._state = State(kwargs)
 
-        for k,v in items:
-            kwargs[k] = self.__parse_value(v)
+        initial_data = {}
+        for field_name, field in self._metadata.fields.items():
+            value = kwargs.get(field_name, Undefined)
+            initial_data[field_name] = self._parse_value(value)
 
-        super().__init__(**kwargs)
+        if not "id" in initial_data or initial_data["id"] is Undefined:
+            initial_data["id"] = None
+            self._state.adding = True
+
+        super().__init__(**initial_data)
 
     def __setattr__(self, key, value):
         if key in self.__dict__ and self.__dict__[key] != value:
-            self._changes[key] = value
+            self._state.changes[key] = value
         super().__setattr__(key, value)
 
-    def __parse_value(self, value):
+    @classmethod
+    def _initialize_metadata(cls):
+        if cls._metadata is None:
+            response = cls._options(cls._endpoint)
+            if response.status_code == 200:
+                cls._metadata = Metadata(response.json())
+            else:
+                cls._metadata = Metadata()
+
+    def _parse_value(self, value):
         if isinstance(value, dict):
             if 'id' in value:
                 value = UnoletResource(**value)
         if isinstance(value, list):
-            value = [self.__parse_value(e) for e in value]
+            value = [self._parse_value(e) for e in value]
         if isinstance(value, str):
             try:
                 value = string_to_date(value)
@@ -51,14 +96,12 @@ class UnoletResource(SimpleNamespace, UnoletAPI):
 
     @classmethod
     def find(cls, **params):
-        endpoint = cls.endpoint
-        data = cls._get(endpoint, params)
+        data = cls._get(cls._endpoint, params)
         return [cls(**item) for item in data]
 
     @classmethod
     def get(cls, id):
-        endpoint = f"{cls.endpoint}/{id}"
-        response = cls._get(endpoint)
+        response = cls._get(f"{cls._endpoint}/{id}")
 
         if response.status_code == 404:
             raise ObjectDoesNotExist(response)
@@ -68,22 +111,20 @@ class UnoletResource(SimpleNamespace, UnoletAPI):
 
     @classmethod
     def create(cls, data):
-        endpoint = cls.endpoint
-        response = cls._post(endpoint, data=data)
+        response = cls._post(cls._endpoint, data=data)
         return response
 
     def delete(self):
-        endpoint = f"{self.endpoint}/{self.id}"
-        response = self._delete(endpoint)
+        response = self._delete(f"{self._endpoint}/{self.id}")
         self._validate(response)
         return response.status_code == 204
 
     def update(self):
         assert self.id
-        if self._changes:
-            endpoint = f"{self.endpoint}/{self.id}"
-            data = self._changes
-            response = self._patch(endpoint, data=data)
+        if self._state.changes:
+            data = self._state.changes
+            data = {k:self._serialize(v) for k,v in data.items()}
+            response = self._patch(f"{self._endpoint}/{self.id}", data=data)
             updated_data = self._validate(response)
             self._update_from_data(updated_data)
 
@@ -99,7 +140,7 @@ class UnoletResource(SimpleNamespace, UnoletAPI):
         if self.id:
             self.update()
         else:
-            response = self.create(self.as_dict())
+            response = self.create(self.get_form_data())
             data = self._validate(response)
             self._update_from_data(data)
 
@@ -118,20 +159,41 @@ class UnoletResource(SimpleNamespace, UnoletAPI):
             return False
         return True
 
-    def as_dict(self):
-        return self._serialize(self)
+    def get_form_data(self):
+        return self.as_dict(as_form_data=True)
+
+    def as_dict(self, as_form_data=False):
+        fields = self._metadata.fields
+        data = {}
+        for field_name, field in fields.items():
+            value = getattr(self, field_name)
+
+            if as_form_data:
+                if field.read_only:
+                    continue
+                elif field.type == "object":
+                    if isinstance(value, UnoletResource):
+                        value = value.id
+                if not value and field.required:
+                    raise ValueError(f"Field {field_name} is required.")
+
+            value = self._serialize(value)
+            data[field_name] = value
+        return data
 
     @staticmethod
     def _serialize(obj):
         if isinstance(obj, UnoletResource):
             dic = vars(obj)
             return UnoletResource._serialize(dic)
-        if isinstance(obj, list):
+        elif isinstance(obj, list):
             return [UnoletResource._serialize(item) for item in obj]
-        if isinstance(obj, dict):
+        elif isinstance(obj, dict):
             return {k: UnoletResource._serialize(v) for k, v in obj.items()}
-        if isinstance(obj, datetime):
+        elif isinstance(obj, datetime):
             return date_to_string(obj)
-        if isinstance(obj, Decimal):
+        elif isinstance(obj, Decimal):
             return str(obj)
+        elif obj is Undefined:
+            return None
         return obj
