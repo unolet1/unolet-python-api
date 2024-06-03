@@ -1,7 +1,7 @@
 # UnoletAPI
 
-Biblioteca de Python para conectarse con la API de Unolet
+Python library to connect with Unolet API
 
-## Estado del Proyecto
+## Project status
 
-Este proyecto se encuentra en una fase inicial de desarrollo y todavía no es completamente funcional.
+This project is in an early stage of development and is not yet fully functional.
