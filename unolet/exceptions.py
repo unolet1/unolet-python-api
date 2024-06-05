@@ -1,7 +1,14 @@
 import requests
 
 
+NON_FIELD_ERRORS = "non_field_errors"
+
+
 class UnoletError(Exception):
+    pass
+
+
+class APIError(UnoletError):
     """Base exception for errors related to connection with Unolet ERP."""
 
     __message = "An error has occurred"
@@ -23,6 +30,24 @@ class ObjectDoesNotExist(UnoletError):
     __message = "The object does not exist"
 
 
+class ValidationError(UnoletError):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+
+class RequiredFieldMissingError(ValidationError):
+    pass
+
+
+class ReadOnlyFieldError(ValidationError):
+    pass
+
+
+class InvalidFieldTypeError(ValidationError):
+    pass
+
+
 def handle_response_error(response: requests.Response):
     try:
         response.raise_for_status()
@@ -31,4 +56,4 @@ def handle_response_error(response: requests.Response):
             errors = response.json()
         except Exception:
             errors = None
-        raise UnoletError(errors=errors, response=response)
+        raise APIError(errors=errors, response=response)

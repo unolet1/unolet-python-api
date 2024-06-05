@@ -7,7 +7,7 @@ from unolet.models import UnoletResource
 
 
 class Document(UnoletResource):
-    pass
+    _endpoint = None
 
 
 class Invoice(Document):
