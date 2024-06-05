@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from collections import defaultdict
+from typing import Dict
 
 from unolet.api import UnoletAPI
 from unolet.utils import (
@@ -12,7 +13,7 @@ from unolet.exceptions import (
     ObjectDoesNotExist,
     ValidationError,
 )
-from unolet.fields import Field, Undefined, field_mapping
+from unolet.fields import RELATED, Field, Undefined, field_mapping
 
 
 class ResourceMeta(type):
@@ -40,10 +41,10 @@ class Metadata:
         self.description = data.get("description", "")
         self.actions = data.get("actions", {})
         _fields_dict = self.actions.get("POST", self.actions.get("PUT", {}))
-        self.fields = {}
+        self.fields: Dict[str, Field] = {}
         for field_name, field_data in _fields_dict.items():
             if "child" in field_data:
-                field_class = field_mapping["related"]
+                field_class = field_mapping[RELATED]
             else:
                 field_class = field_mapping[field_data["type"]]
 
@@ -94,7 +95,7 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
     @classmethod
     def _initialize_metadata(cls):
         if cls._metadata is None:
-            response = cls._options(cls._endpoint)
+            response = UnoletAPI.options(cls._endpoint)
             if response.status_code == 200:
                 cls._metadata = Metadata(response.json())
             else:

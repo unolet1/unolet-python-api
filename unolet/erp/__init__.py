@@ -12,3 +12,7 @@ class Document(UnoletResource):
 
 class Invoice(Document):
     _endpoint = "invoice"
+
+
+class Person(UnoletResource):
+    _endpoint = "person"

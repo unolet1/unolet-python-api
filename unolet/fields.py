@@ -1,12 +1,17 @@
 from datetime import date, datetime
 from decimal import Decimal
+from functools import cached_property
 from typing import Dict
+import importlib
 
 from unolet.utils import is_string_decimal, string_to_date
 
 
 FIELD = "field"
-RELATED = "related"
+RELATED = "nested object"
+IMAGE = "image upload"
+URL = "url"
+EMAIL = "email"
 STRING = "string"
 INTEGER = "integer"
 FLOAT = "float"
@@ -14,7 +19,7 @@ DECIMAL = "decimal"
 CHOICE = "choice"
 DATE = "date"
 DATETIME = "datetime"
-BOOLEAN = "bool"
+BOOLEAN = "boolean"
 
 
 class Field:
@@ -25,6 +30,7 @@ class Field:
         self.type = data.pop("type")
         self.required = data.pop("required")
         self.read_only = data.pop("read_only")
+        self.allow_null = data.pop("allow_null")
         self.help_text = data.pop("help_text", "")
         self.label = data.pop("label", name.replace("_", " ").capitalize())
 
@@ -39,6 +45,10 @@ class Field:
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.name}>"
+
+    @cached_property
+    def is_related(self):
+        return bool(getattr(self, "related_model", None))
 
     def validate_data(self):
         assert isinstance(self.name, str)
@@ -67,8 +77,10 @@ class Field:
 
     def parse_value(self, value):
         value = self.validate_value(value)
-        if isinstance(value, dict) and 'id' in value:
-            pass
+        if self.is_related and isinstance(value, dict) and 'id' in value:
+            module = importlib.import_module("unolet")
+            model_class = getattr(module, self.related_model)
+            value = model_class(**value)
         elif isinstance(value, list):
             value = [self.parse_value(e) for e in value]
         elif isinstance(value, str):
@@ -83,7 +95,7 @@ class Field:
 class RelatedField(Field):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.children = {k:Field(k, v) for k,v in kwargs["children"].items()} if "children" in kwargs else None
+        self.children = {k:Field(k, **v) for k,v in kwargs["children"].items()} if "children" in kwargs else None
 
 
 class IntegerField(Field):
@@ -96,8 +108,8 @@ class IntegerField(Field):
 
     def validate_data(self):
         super().validate_data()
-        assert self.min_value is None or isinstance(self.min_value, int)
-        assert self.max_value is None or isinstance(self.max_value, int)
+        assert self.min_value is None or isinstance(self.min_value, (int, float, Decimal)), self.min_value
+        assert self.max_value is None or isinstance(self.max_value, (int, float, Decimal)), self.max_value
 
 
 class FloatField(IntegerField):
@@ -152,6 +164,18 @@ class BooleanField(Field):
     internal_type = bool
 
 
+class ImageField(StringField):
+    pass
+
+
+class URLField(StringField):
+    pass
+
+
+class EmailField(StringField):
+    pass
+
+
 class Undefined:
     def __str__(self):
         return repr(self)
@@ -181,4 +205,7 @@ field_mapping: Dict[str, Field] = {
     DATETIME: DatetimeField,
     BOOLEAN: BooleanField,
     RELATED: RelatedField,
+    IMAGE: ImageField,
+    URL: URLField,
+    EMAIL: EmailField,
 }

@@ -11,14 +11,12 @@ class UnoletError(Exception):
 class APIError(UnoletError):
     """Base exception for errors related to connection with Unolet ERP."""
 
-    __message = "An error has occurred"
-
     def __init__(self, message=None, errors=None, response: requests.Response=None):
         self.response = response
         self.errors = errors
         self.status_code = None
         if not message:
-            message = errors.get('detail', errors) if errors else self.__message
+            message = errors.get('detail', errors) if errors else f"{response.status_code}: {response.url}"
         super().__init__(message)
 
     @property
