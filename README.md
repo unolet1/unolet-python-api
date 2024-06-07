@@ -6,6 +6,15 @@ Python library to connect with Unolet API
 
 This project is in an early stage of development and is not yet fully functional.
 
+## Instalation
+
+To install the UnoletAPI library, you can use pip:
+
+
+```sh
+pip install unolet
+```
+
 
 ## Usage
 
@@ -54,3 +63,16 @@ movement.save()
 ```
 
 Now you can easily and efficiently use the Unolet API with this Python library!
+
+## Contributing
+We welcome contributions to improve this library. Please fork the repository and submit pull requests for review.
+
+## Support
+For any questions or issues, please visit the [Unolet Support Page](https://unolet.app/help/).
+
+### Links
+* [Unolet Official Website](https://www.unolet.com)
+* [Unolet Documentation](https://unolet.app/tools/#python)
+
+## License
+This project is licensed under the MIT License. See the LICENSE file for more information.
