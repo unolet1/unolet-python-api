@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
+from functools import cached_property
 from types import SimpleNamespace
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List
+from urllib.parse import urlparse, parse_qs
 
 from unolet.api import UnoletAPI
 from unolet.utils import (
@@ -32,7 +34,6 @@ class State:
         self.changes = {}
         self.adding = False
         self.original_data = original_data or {}
-
 
 
 class Metadata:
@@ -155,8 +156,19 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
 
     @classmethod
     def find(cls, **params):
-        data = UnoletAPI.get(cls._endpoint, params)
-        return [cls(**item) for item in data]
+        response = UnoletAPI.get(cls._endpoint, params)
+        data = response.json()
+        if "count" in data:
+            return Pagination(
+                model_class=cls,
+                count=data["count"],
+                next_url=data["next"],
+                previous_url=data["previous"],
+                results=data["results"]
+            )
+        elif "results" in data:
+            return ResourceList(model_class=cls, items=data)
+        raise NotImplemented()
 
     @classmethod
     def get(cls, id):
@@ -237,3 +249,100 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
 
 class UnoletResource(BaseResource):
     _endpoint = None
+
+
+class ResourceList:
+    def __init__(
+        self,
+        model_class: UnoletResource,
+        items: List[Dict],
+    ):
+        self.model_class = model_class
+        self.items =  [model_class(**item) for item in items]
+
+    def __repr__(self) -> str:
+        return (
+            f"<ResourceList(items={self.items})>")
+
+    def __str__(self) -> str:
+        return f"ResouceList({self.model_class.__name__})"
+
+    def __len__(self) -> int:
+        return len(self.items)
+
+    def __getitem__(self, index: int) -> UnoletResource:
+        return self.items[index]
+
+    def __iter__(self):
+        return iter(self.items)
+
+    def __eq__(self, other: 'ResourceList') -> bool:
+        if not isinstance(other, ResourceList):
+            return NotImplemented
+        return self.items == other.items
+
+    @cached_property
+    def count(self):
+        return len(self)
+
+
+class Pagination:
+    def __init__(
+        self,
+        model_class: UnoletResource,
+        count: int,
+        next_url: str | None,
+        previous_url: str | None,
+        results: List[Dict],
+    ):
+        self.model_class = model_class
+        self.count = count
+        self.next_url = next_url
+        self.previous_url = previous_url
+        self.results =  ResourceList(model_class, results)
+
+        if self.next_url:
+            self.next_url_params = parse_qs(urlparse(self.next_url).query)
+        if self.previous_url:
+            self.previous_url_params = parse_qs(urlparse(self.previous_url).query)
+
+    def __repr__(self) -> str:
+        return (
+            f"<Pagination(count={self.count}, next={self.next_url}, "
+            f"previous={self.previous_url}, results={self.results})>"
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Pagination with {self.count} results, next: {self.next_url}, "
+            f"previous: {self.previous_url}"
+        )
+
+    def __len__(self) -> int:
+        return self.count
+
+    def __getitem__(self, index: int) -> UnoletResource:
+        return self.results[index]
+
+    def __iter__(self):
+        return iter(self.results)
+
+    def __eq__(self, other: 'Pagination') -> bool:
+        if not isinstance(other, Pagination):
+            return NotImplemented
+        return (
+            self.count == other.count and
+            self.next_url == other.next and
+            self.previous_url == other.previous and
+            self.results == other.results
+        )
+
+    def next(self):
+        if self.next_url:
+            page = self.next_url_params["page"][0]
+            return self.model_class.find(page=page)
+
+    def previous(self):
+        if self.previous_url:
+            page = self.previous_url_params["page"][0]
+            return self.model_class.find(page=page)
