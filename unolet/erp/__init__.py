@@ -6,8 +6,16 @@ Establishes connection with Unolet's customized ERP system.
 from unolet.models import UnoletResource
 
 
+class Company(UnoletResource):
+    _endpoint = "company"
+
+
 class Movement(UnoletResource):
     _endpoint = "movement"
+
+
+class DocumentType(UnoletResource):
+    _endpoint = "documenttype"
 
 
 class Document(UnoletResource):
@@ -48,3 +56,7 @@ class NCF(UnoletResource):
 
 class AuthorizationNCF(UnoletResource):
     _endpoint = "authorizationncf"
+
+
+class Warehouse(UnoletResource):
+    _endpoint = "warehouse"
