@@ -2,6 +2,8 @@
 
 Python library to connect with Unolet API
 
+![image](https://github.com/unolet1/unolet-python-api/assets/44853160/785fb5b3-537a-45a0-921f-58746bb2679f)
+
 ## Project status
 
 This project is in an early stage of development and is not yet fully functional.
