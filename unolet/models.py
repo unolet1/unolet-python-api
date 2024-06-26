@@ -133,7 +133,7 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
 
             if value is not Undefined:
                 try:
-                    validated_value = field.validate_value(value)
+                    validated_value = field.serialize(value)
                     validated_data[field_name] = validated_value
                 except ValueError as e:
                     errors[field_name].append(f"Este campo tiene un tipo inválido: {e}")
