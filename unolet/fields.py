@@ -4,7 +4,7 @@ from functools import cached_property
 from typing import Dict
 import importlib
 
-from unolet.utils import is_string_decimal, string_to_date
+from unolet.utils import is_string_decimal, string_to_date, date_to_string
 
 
 FIELD = "field"
@@ -90,6 +90,31 @@ class Field:
                 if is_string_decimal(value):
                     value = Decimal(value)
         return value
+
+    def serialize(self, value):
+        """
+        Serialize the value to a format suitable for a POST request with requests.
+
+        Args:
+            value (any): The value to be serialized.
+
+        Returns:
+            any: The serialized value.
+        """
+        if value is None:
+            return value
+        elif self.is_related:
+            return value.id
+        elif isinstance(value, (date, datetime)):
+            return date_to_string(value)
+        elif isinstance(value, Decimal):
+            return str(value)
+        elif isinstance(value, list):
+            return [self.serialize(v) for v in value]
+        elif hasattr(value, '__dict__'):
+            return {k: self.serialize(v) for k, v in value.__dict__.items() if not k.startswith('_')}
+        else:
+            return value
 
 
 class RelatedField(Field):
