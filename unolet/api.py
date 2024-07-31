@@ -21,7 +21,15 @@ class UnoletAPI:
     @classmethod
     def connect(cls, token: str, base_url: str, api_version: str = "v1"):
         """
-        Connect to the Unolet API using the token, base_url and API version.
+        Establish a connection to the Unolet API.
+
+        This method configures the connection settings for the Unolet API using
+        the provided token, base URL, and API version.
+
+        Args:
+            `token` (str): The authentication token for accessing the Unolet API.
+            `base_url` (str): The base URL of the Unolet API.
+            `api_version` (str, optional): The version of the Unolet API to use. Defaults to "v1".
         """
         cls.config = APIConfig(token, base_url, api_version)
 
@@ -35,9 +43,6 @@ class UnoletAPI:
     @staticmethod
     def request(endpoint, method='GET', params=None, data=None):
         url = UnoletAPI.build_url(endpoint)
-        print(method, url)
-        print(params)
-        print(data)
         headers = UnoletAPI.get_headers()
         response = requests.request(method, url, headers=headers, params=params, json=data)
         return response

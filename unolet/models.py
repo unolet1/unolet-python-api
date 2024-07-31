@@ -3,18 +3,12 @@ from decimal import Decimal
 from functools import cached_property
 from types import SimpleNamespace
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 from urllib.parse import urlparse, parse_qs
 
 from unolet.api import UnoletAPI
-from unolet.utils import (
-    is_string_decimal,
-    string_to_date,
-)
-from unolet.exceptions import (
-    ObjectDoesNotExist,
-    ValidationError,
-)
+from unolet.utils import is_string_decimal, string_to_date
+from unolet.exceptions import ObjectDoesNotExist, ValidationError
 from unolet.fields import RELATED, Field, Undefined, field_mapping
 
 
@@ -38,6 +32,12 @@ class State:
 
 class Metadata:
     def __init__(self, data):
+        """
+        Initialize metadata with the provided data.
+
+        Args:
+            data (dict): Data to initialize metadata.
+        """
         self.name = data.get("name", "")
         self.description = data.get("description", "")
         self.actions = data.get("actions", {})
@@ -128,7 +128,7 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
                 continue
 
             if field.required and value is Undefined:
-                errors[field_name].append(f"Este campo es requerido.")
+                errors[field_name].append(f"This field is required.")
                 continue
 
             if value is not Undefined:
@@ -136,7 +136,7 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
                     validated_value = field.serialize(value)
                     validated_data[field_name] = validated_value
                 except ValueError as e:
-                    errors[field_name].append(f"Este campo tiene un tipo inválido: {e}")
+                    errors[field_name].append(f"Invalid type for this field: {e}")
 
         if errors:
             raise ValidationError(dict(errors))
@@ -193,7 +193,7 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
         assert self.id
         if self._state.changes:
             data = self._state.changes
-            data = {k:self._serialize(v) for k,v in data.items()}
+            data = {k: self._serialize(v) for k, v in data.items()}
             response = UnoletAPI.patch(f"{self._endpoint}/{self.id}", data=data)
             updated_data = response.json()
             self._update_from_data(updated_data)
@@ -213,16 +213,12 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
         for field_name, field in self._metadata.fields.items():
             value = getattr(self, field_name, None)
             if value is not None:
-                if field.internal_type == "Decimal":
+                if field.internal_type == Decimal:
                     serialized_data[field_name] = str(value)
-                elif field.internal_type == "datetime":
+                elif field.internal_type in [datetime, date]:
                     serialized_data[field_name] = value.isoformat()
-                elif field.internal_type == "date":
-                    serialized_data[field_name] = value.isoformat()
-                elif field.internal_type in ["int", "float", "str", "bool"]:
-                    serialized_data[field_name] = value
                 else:
-                    serialized_data[field_name] = str(value)
+                    serialized_data[field_name] = value
         return serialized_data
 
     def _deserialize(self, data):
@@ -230,19 +226,19 @@ class BaseResource(SimpleNamespace, metaclass=ResourceMeta):
         for field_name, field in self._metadata.fields.items():
             value = data.get(field_name, None)
             if value is not None:
-                if field.internal_type == "Decimal":
+                if field.internal_type == Decimal:
                     deserialized_data[field_name] = Decimal(value)
-                elif field.internal_type == "datetime":
+                elif field.internal_type == datetime:
                     deserialized_data[field_name] = datetime.fromisoformat(value)
-                elif field.internal_type == "date":
+                elif field.internal_type == date:
                     deserialized_data[field_name] = date.fromisoformat(value)
-                elif field.internal_type == "int":
+                elif field.internal_type == int:
                     deserialized_data[field_name] = int(value)
-                elif field.internal_type == "float":
+                elif field.internal_type == float:
                     deserialized_data[field_name] = float(value)
-                elif field.internal_type == "str":
+                elif field.internal_type == str:
                     deserialized_data[field_name] = str(value)
-                elif field.internal_type == "bool":
+                elif field.internal_type == bool:
                     deserialized_data[field_name] = value.lower() in ['true', '1', 't', 'y', 'yes']
         self._update_from_data(deserialized_data)
 
@@ -252,20 +248,22 @@ class UnoletResource(BaseResource):
 
 
 class ResourceList:
-    def __init__(
-        self,
-        model_class: UnoletResource,
-        items: List[Dict],
-    ):
+    def __init__(self, model_class: UnoletResource, items: List[Dict]):
+        """
+        Initialize a ResourceList.
+
+        Args:
+            model_class (UnoletResource): The class of the resource.
+            items (List[Dict]): The items to include in the resource list.
+        """
         self.model_class = model_class
-        self.items =  [model_class(**item) for item in items]
+        self.items = [model_class(**item) for item in items]
 
     def __repr__(self) -> str:
-        return (
-            f"<ResourceList(items={self.items})>")
+        return f"<ResourceList(items={self.items})>"
 
     def __str__(self) -> str:
-        return f"ResouceList({self.model_class.__name__})"
+        return f"ResourceList({self.model_class.__name__})"
 
     def __len__(self) -> int:
         return len(self.items)
@@ -287,19 +285,22 @@ class ResourceList:
 
 
 class Pagination:
-    def __init__(
-        self,
-        model_class: UnoletResource,
-        count: int,
-        next_url: str | None,
-        previous_url: str | None,
-        results: List[Dict],
-    ):
+    def __init__(self, model_class: UnoletResource, count: int, next_url: Optional[str], previous_url: Optional[str], results: List[Dict]):
+        """
+        Initialize a Pagination object.
+
+        Args:
+            model_class (UnoletResource): The class of the resource.
+            count (int): The total number of results.
+            next_url (Optional[str]): The URL for the next page of results.
+            previous_url (Optional[str]): The URL for the previous page of results.
+            results (List[Dict]): The list of results.
+        """
         self.model_class = model_class
         self.count = count
         self.next_url = next_url
         self.previous_url = previous_url
-        self.results =  ResourceList(model_class, results)
+        self.results = ResourceList(model_class, results)
 
         if self.next_url:
             self.next_url_params = parse_qs(urlparse(self.next_url).query)
@@ -307,16 +308,10 @@ class Pagination:
             self.previous_url_params = parse_qs(urlparse(self.previous_url).query)
 
     def __repr__(self) -> str:
-        return (
-            f"<Pagination(count={self.count}, next={self.next_url}, "
-            f"previous={self.previous_url}, results={self.results})>"
-        )
+        return f"<Pagination(count={self.count}, next={self.next_url}, previous={self.previous_url}, results={self.results})>"
 
     def __str__(self) -> str:
-        return (
-            f"Pagination with {self.count} results, next: {self.next_url}, "
-            f"previous: {self.previous_url}"
-        )
+        return f"Pagination with {self.count} results, next: {self.next_url}, previous: {self.previous_url}"
 
     def __len__(self) -> int:
         return self.count
@@ -330,12 +325,7 @@ class Pagination:
     def __eq__(self, other: 'Pagination') -> bool:
         if not isinstance(other, Pagination):
             return NotImplemented
-        return (
-            self.count == other.count and
-            self.next_url == other.next and
-            self.previous_url == other.previous and
-            self.results == other.results
-        )
+        return self.count == other.count and self.next_url == other.next and self.previous_url == other.previous and self.results == other.results
 
     def next(self):
         if self.next_url:

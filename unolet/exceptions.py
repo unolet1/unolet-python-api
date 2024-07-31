@@ -5,53 +5,107 @@ NON_FIELD_ERRORS = "non_field_errors"
 
 
 class UnoletError(Exception):
+    """Base class for all Unolet exceptions."""
     pass
 
 
 class APIError(UnoletError):
-    """Base exception for errors related to connection with Unolet ERP."""
+    """
+    Exception raised for API errors.
 
-    def __init__(self, message=None, errors=None, response: requests.Response=None):
+    Attributes:
+        message -- explanation of the error
+        errors -- errors returned by the API
+        response -- the HTTP response object
+    """
+    def __init__(self, message=None, errors=None, response: requests.Response = None):
         self.response = response
-        self.errors = errors
-        self.status_code = None
+        self.errors = errors or {}
+        self.status_code = response.status_code if response else None
+
         if not message:
-            message = errors.get('detail', errors) if errors else f"{response.status_code}: {response.url}"
+            message = self.errors.get('detail', str(self.errors)) if self.errors else f"{self.status_code}: {response.url}"
+        self.message = message
         super().__init__(message)
 
     @property
     def messages(self):
-        return [e2 for e2 in [e1 for e1 in self.errors.values()]]
+        """Return a list of error messages."""
+        return [e2 for e1 in self.errors.values() for e2 in (e1 if isinstance(e1, list) else [e1])]
 
 
-class ObjectDoesNotExist(UnoletError):
-    __message = "The object does not exist"
+class ObjectDoesNotExist(APIError):
+    """Exception raised when an object does not exist."""
+    pass
 
 
-class ValidationError(UnoletError):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NotFound(ObjectDoesNotExist):
+    """Exception raised when a requested resource is not found."""
+    pass
+
+
+class ValidationError(APIError):
+    """Exception raised for validation errors."""
+    pass
 
 
 class RequiredFieldMissingError(ValidationError):
+    """Exception raised when a required field is missing."""
     pass
 
 
 class ReadOnlyFieldError(ValidationError):
+    """Exception raised when a read-only field is being modified."""
     pass
 
 
 class InvalidFieldTypeError(ValidationError):
+    """Exception raised when a field has an invalid type."""
     pass
 
 
-def handle_response_error(response: requests.Response):
+class UnexpectedResponseCodeError(APIError):
+    """
+    Exception raised when the response code is unexpected.
+
+    Attributes:
+        expected_code -- the expected HTTP status code
+        received_code -- the received HTTP status code
+    """
+    def __init__(self, expected_code, received_code, response: requests.Response = None):
+        self.expected_code = expected_code
+        self.received_code = received_code
+        message = f"Expected response code {expected_code}, but received {received_code}"
+        super().__init__(message=message, response=response)
+
+
+def handle_response_error(response: requests.Response, expected_response_code: int = None):
+    """
+    Handle errors from the API response.
+
+    Raises an appropriate error based on the response status code.
+    """
     try:
         response.raise_for_status()
-    except Exception as e:
+    except requests.HTTPError as e:
         try:
             errors = response.json()
-        except Exception:
-            errors = None
+        except ValueError:
+            # If response is not a valid JSON, raise the original error
+            raise e
+
+        if response.status_code == 400:
+            raise ValidationError(errors=errors, response=response)
+        elif response.status_code == 404:
+            raise NotFound(errors=errors, response=response)
+        elif response.status_code == 500:
+            raise APIError(errors=errors, response=response)
+
         raise APIError(errors=errors, response=response)
+
+    if expected_response_code and expected_response_code != response.status_code:
+        raise UnexpectedResponseCodeError(
+            expected_code=expected_response_code,
+            received_code=response.status_code,
+            response=response,
+        )

@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unolet"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
-  { name = "unolet", email = "info@unolet.com" },
+  { name = "Unolet", email = "info@unolet.com" },
   { name = "Wilmer Martinez", email = "info@wilmermartinez.dev" },
 ]
 description = "Python library to connect with Unolet API"
@@ -50,6 +50,7 @@ classifiers = [# https://pypi.org/classifiers/
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
   "requests",
@@ -59,6 +60,22 @@ keywords = [
   "unolet",
   "api",
   "erp",
+  "enterprise resource planning",
+  "business management",
+  "accounting",
+  "inventory",
+  "sales",
+  "purchases",
+  "quotations",
+  "invoices",
+  "warehouse management",
+  "python client",
+  "rest api",
+  "django",
+  "data integration",
+  "automation",
+  "business solutions",
+  "python library"
 ]
 
 [project.urls]

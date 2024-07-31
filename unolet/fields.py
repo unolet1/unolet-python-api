@@ -23,9 +23,19 @@ BOOLEAN = "boolean"
 
 
 class Field:
+    """
+    Base class for all field types.
+    """
     internal_type = None
 
     def __init__(self, name: str, **data):
+        """
+        Initialize a field with the given name and properties.
+
+        Args:
+            name (str): The name of the field.
+            **data: Additional properties for the field.
+        """
         self.name = name
         self.type = data.pop("type")
         self.required = data.pop("required")
@@ -48,15 +58,30 @@ class Field:
 
     @cached_property
     def is_related(self):
+        """
+        Check if the field is a related field.
+        """
         return bool(getattr(self, "related_model", None))
 
     def validate_data(self):
+        """
+        Validate the field's data.
+        """
         assert isinstance(self.name, str)
         assert isinstance(self.type, str)
         assert isinstance(self.required, bool)
         assert isinstance(self.read_only, bool)
 
     def validate_value(self, value):
+        """
+        Validate the value against the field's expected type.
+
+        Args:
+            value: The value to be validated.
+
+        Returns:
+            The validated value.
+        """
         expected_type = self.internal_type
         if (
             value is not None
@@ -76,6 +101,15 @@ class Field:
         return value
 
     def parse_value(self, value):
+        """
+        Parse the value to the appropriate type.
+
+        Args:
+            value: The value to be parsed.
+
+        Returns:
+            The parsed value.
+        """
         value = self.validate_value(value)
         if self.is_related and isinstance(value, dict) and 'id' in value:
             module = importlib.import_module("unolet")
@@ -118,12 +152,18 @@ class Field:
 
 
 class RelatedField(Field):
+    """
+    Field for related models.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.children = {k:Field(k, **v) for k,v in kwargs["children"].items()} if "children" in kwargs else None
+        self.children = {k: Field(k, **v) for k, v in kwargs["children"].items()} if "children" in kwargs else None
 
 
 class IntegerField(Field):
+    """
+    Field for integer values.
+    """
     internal_type = int
 
     def __init__(self, *args, **kwargs):
@@ -138,10 +178,16 @@ class IntegerField(Field):
 
 
 class FloatField(IntegerField):
+    """
+    Field for float values.
+    """
     internal_type = float
 
 
 class DecimalField(IntegerField):
+    """
+    Field for decimal values.
+    """
     internal_type = Decimal
 
     def __init__(self, *args, **kwargs):
@@ -156,6 +202,9 @@ class DecimalField(IntegerField):
 
 
 class StringField(Field):
+    """
+    Field for string values.
+    """
     internal_type = str
 
     def __init__(self, *args, **kwargs):
@@ -168,6 +217,9 @@ class StringField(Field):
 
 
 class ChoiceField(StringField):
+    """
+    Field for choices.
+    """
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("choices", [])
         super().__init__(*args, **kwargs)
@@ -178,35 +230,56 @@ class ChoiceField(StringField):
 
 
 class DateField(Field):
+    """
+    Field for date values.
+    """
     internal_type = date
 
 
 class DatetimeField(DateField):
+    """
+    Field for datetime values.
+    """
     internal_type = datetime
 
 
 class BooleanField(Field):
+    """
+    Field for boolean values.
+    """
     internal_type = bool
 
 
 class ImageField(StringField):
+    """
+    Field for image uploads.
+    """
     pass
 
 
 class URLField(StringField):
+    """
+    Field for URL values.
+    """
     pass
 
 
 class EmailField(StringField):
+    """
+    Field for email values.
+    """
     pass
 
 
 class Undefined:
+    """
+    Class representing an undefined value.
+    """
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        return f"<Undefined>"
+        return "<Undefined>"
 
     def __bool__(self):
         return False
@@ -216,7 +289,6 @@ class Undefined:
 
     def __ne__(self, other):
         return not isinstance(other, Undefined) and other is not None
-
 
 
 field_mapping: Dict[str, Field] = {
